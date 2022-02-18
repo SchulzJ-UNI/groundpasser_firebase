@@ -32,6 +32,29 @@ class MyApp extends StatelessWidget {
   }
 }
 
+Future<String> getNotifyValue(BluetoothCharacteristic? characteristic) async {
+  var msg = "null";
+  /*characteristic.value.listen((value) {
+      widget.readValues[characteristic.uuid] = value;
+    });*/
+  if (characteristic == null) {
+    msg = "kein Characteristics erkannt";
+  } else {
+    //characteristic.setNotifyValue(true);
+    msg = "Characteristic erkannt. Warte auf Wert";
+    characteristic.value.listen((value) {
+      //msg = "Characteristic erkannt. Warte auf Wert";
+      /*msg = utf8.decode(value);
+      print(utf8.decode(value));
+      AsyncSnapshot<String>.withError(
+                      ConnectionState.active, utf8.decode(value));
+                  _calculation = Future<String>.sync(() => utf8.decode(value));*/
+    });
+  }
+  print("msg: " + msg);
+  return msg;
+}
+
 class MyHomePage extends StatefulWidget {
   MyHomePage({Key? key, required this.title}) : super(key: key);
 
@@ -48,7 +71,8 @@ class _MyHomePageState extends State<MyHomePage> {
   final _writeController = TextEditingController();
   BluetoothDevice? _connectedDevice;
   List<BluetoothService> _services = [];
-
+  Future<String>? _value = null;
+  BluetoothCharacteristic? currentBLuetoothCharacteristics = null;
   _addDeviceTolist(final BluetoothDevice device) {
     if (!widget.devicesList.contains(device)) {
       setState(() {
@@ -60,6 +84,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    _value = getNotifyValue(currentBLuetoothCharacteristics);
     widget.flutterBlue.connectedDevices
         .asStream()
         .listen((List<BluetoothDevice> devices) {
@@ -174,8 +199,15 @@ class _MyHomePageState extends State<MyHomePage> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: ElevatedButton(
-              child: const Text('WRITE', style: TextStyle(color: Colors.white)),
+              child: const Text('Start Game',
+                  style: TextStyle(color: Colors.white)),
               onPressed: () async {
+                characteristic.write(utf8.encode('Spiel1'));
+                currentBLuetoothCharacteristics = characteristic;
+                await getNotifyValue(characteristic);
+                //Navigator.pop(context);
+              },
+              /*onPressed: () async {
                 await showDialog(
                     context: context,
                     builder: (BuildContext context) {
@@ -208,7 +240,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         ],
                       );
                     });
-              },
+              },*/
             ),
           ),
         ),
@@ -229,6 +261,12 @@ class _MyHomePageState extends State<MyHomePage> {
                   widget.readValues[characteristic.uuid] = value;
                 });
                 await characteristic.setNotifyValue(true);
+                characteristic.value.listen((value) {
+                  print(utf8.decode(value));
+                  /*AsyncSnapshot<String>.withError(
+                      ConnectionState.active, utf8.decode(value));
+                  _calculation = Future<String>.sync(() => utf8.decode(value));*/
+                });
               },
             ),
           ),
@@ -242,7 +280,7 @@ class _MyHomePageState extends State<MyHomePage> {
   //display the characteristics for each service and add buttons depending on if we can read, write or notify about this feature
   ListView _buildConnectDeviceView() {
     List<Container> containers = [];
-    print('test');
+    //print('test');
     for (BluetoothService service in _services) {
       List<Widget> characteristicsWidget = [];
       for (BluetoothCharacteristic characteristic in service.characteristics) {
@@ -264,6 +302,57 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: <Widget>[
                     //Text('data', style: TextStyle(color: Colors.red))
                     ..._buildReadWriteNotifyButton(characteristic),
+                    FutureBuilder<String>(
+                      future:
+                          _value, // a previously-obtained Future<String> or null
+                      builder: (BuildContext context,
+                          AsyncSnapshot<String> snapshot) {
+                        List<Widget> children;
+                        if (snapshot.hasData) {
+                          children = <Widget>[
+                            const Icon(
+                              Icons.check_circle_outline,
+                              color: Colors.green,
+                              size: 60,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Text('Result: ${snapshot.data}'),
+                            )
+                          ];
+                        } else if (snapshot.hasError) {
+                          children = <Widget>[
+                            const Icon(
+                              Icons.error_outline,
+                              color: Colors.red,
+                              size: 60,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Text('Error: ${snapshot.error}'),
+                            )
+                          ];
+                        } else {
+                          children = const <Widget>[
+                            SizedBox(
+                              width: 60,
+                              height: 60,
+                              child: CircularProgressIndicator(),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.only(top: 16),
+                              child: Text('Awaiting result...'),
+                            )
+                          ];
+                        }
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: children,
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
                 Divider(),
